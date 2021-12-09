@@ -13,32 +13,39 @@ func TestStore(t *testing.T) {
 
 	key, value := []byte("first"), []byte("first_value")
 
-	t.Run("Set", func(t *testing.T) {
-		assert.NoError(t, store.Set(key, value))
+	t.Run("set", func(t *testing.T) {
+		assert.NoError(t, store.set(key, value))
 
-		result, err := store.Get(key)
-		assert.NoError(t, err, "failed to Get from store")
+		result, err := store.get(key)
+		assert.NoError(t, err, "failed to get from store")
 
 		assert.Equal(t, result, value)
 	})
 
 	newKey := []byte("second")
-	t.Run("Rename", func(t *testing.T) {
-		assert.NoError(t, store.Rename(key, newKey))
+	t.Run("rename", func(t *testing.T) {
+		assert.NoError(t, store.rename(key, newKey))
 
-		_, err := store.Get(key)
+		_, err := store.get(key)
 		assert.ErrorIs(t, err, badger.ErrKeyNotFound)
 
-		result, err := store.Get(newKey)
+		result, err := store.get(newKey)
 		assert.NoError(t, err)
 
 		assert.Equal(t, result, value)
 	})
 
-	t.Run("Delete", func(t *testing.T) {
-		assert.NoError(t, store.Delete(newKey))
+	t.Run("delete", func(t *testing.T) {
+		assert.NoError(t, store.delete(newKey))
 
-		_, err := store.Get(newKey)
+		_, err := store.get(newKey)
+		assert.ErrorIs(t, err, badger.ErrKeyNotFound)
+	})
+
+	t.Run("namespaces", func(t *testing.T) {
+		assert.NoError(t, store.Namespace("A").set(key, value))
+
+		_, err := store.Namespace("B").get(key)
 		assert.ErrorIs(t, err, badger.ErrKeyNotFound)
 	})
 

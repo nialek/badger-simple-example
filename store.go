@@ -1,9 +1,17 @@
 package store
 
-import "github.com/dgraph-io/badger/v3"
+import (
+	"github.com/dgraph-io/badger/v3"
+)
 
 type Store struct {
-	badger *badger.DB
+	badger    *badger.DB
+	namespace string
+}
+
+func (s Store) Namespace(namespace string) Store {
+	s.namespace = namespace
+	return s
 }
 
 func NewStore(inMemory bool) (s Store, err error) {
@@ -20,33 +28,34 @@ func (s Store) Close() error {
 	return s.badger.Close()
 }
 
-func (s Store) Get(key []byte) (value []byte, err error) {
+func (s Store) get(key []byte) (value []byte, err error) {
 	return value, s.badger.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(key)
+		item, err := txn.Get(s.concat(key))
 		if err != nil {
 			return err
 		}
 
-		value, err = item.ValueCopy(value)
+		value, err = item.ValueCopy(nil)
 		return err
 	})
 }
 
-func (s Store) Set(key, value []byte) error {
+func (s Store) set(key, value []byte) error {
 	return s.badger.Update(func(txn *badger.Txn) error {
-		return txn.Set(key, value)
+		return txn.Set(s.concat(key), value)
 	})
 }
 
-func (s Store) Delete(key []byte) error {
+func (s Store) delete(key []byte) error {
 	return s.badger.Update(func(txn *badger.Txn) error {
-		return txn.Delete(key)
+		return txn.Delete(s.concat(key))
 	})
 }
 
-func (s Store) Rename(key []byte, newKey []byte) error {
+func (s Store) rename(key []byte, newKey []byte) error {
 	return s.badger.Update(func(txn *badger.Txn) error {
-		item, err := txn.Get(key)
+		oldKey := s.concat(key)
+		item, err := txn.Get(oldKey)
 		if err != nil {
 			return err
 		}
@@ -56,15 +65,16 @@ func (s Store) Rename(key []byte, newKey []byte) error {
 			return err
 		}
 
-		err = txn.Delete(key)
+		err = txn.Delete(oldKey)
 		if err != nil {
 			return err
 		}
 
-		return txn.Set(newKey, partnerId)
+		return txn.Set(s.concat(newKey), partnerId)
 	})
 }
 
-func ConcatKey(namespace string, key []byte) []byte {
-	return append([]byte(namespace+":"), key...)
+func (s Store) concat(key []byte) []byte {
+	namespace := []byte(s.namespace + ":")
+	return append(namespace, key...)
 }
